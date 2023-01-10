@@ -1,0 +1,132 @@
+#property copyright "Copyright 2023, MetaQuotes Ltd."
+#property link      "https://www.mql5.com"
+#property version   "1.00"
+#include <Trade/Trade.mqh>
+
+int rsiHandle;
+ulong posTicket = 0;
+
+CTrade trade;//library to make trades
+
+int OnInit(){
+  Print("Advisor Started for " + _Symbol);
+  
+  
+  return(INIT_SUCCEEDED);
+}
+
+void OnDeinit(const int reason){
+   Print("Advisor Stopped");
+}
+
+void OnTick(){
+   //check if we have active trades
+   for(int i = PositionsTotal() - 1; i >= 0; i--) {
+      ulong ticket = PositionGetTicket(i);
+      string sym = PositionGetSymbol(i);
+      if(ticket>0){
+          if(sym == _Symbol){
+            return;//this means we already have a trade for this... lets not stop the others
+          }
+      }
+   }
+   
+   posTicket = 0;
+   RSI();  
+   MACD();   
+}
+
+void MACD(){
+   int macHandle = iMACD(_Symbol,_Period,12,26,9,PRICE_CLOSE);//fast,slow,signal SMA period
+}
+  
+void RSI(){
+   int rsiHandle = iRSI(_Symbol, _Period,14,PRICE_CLOSE);//curr, timeframe, period, applied price
+   double rsi[];
+   CopyBuffer(rsiHandle,0,1,1,rsi);
+   //Print("RSI: " + rsi[0]);
+   
+   if(rsi[0] > 75){
+      Print("RSI ABOVE 75, current: " + rsi[0]);
+      //Place Order
+      trade.Sell(0.01, _Symbol);
+      posTicket = trade.ResultOrder();
+   }else if(rsi[0] < 25){
+      //Place Order
+      Print("RSI BELOW 25, current: " + rsi[0]);
+      //open position
+      trade.Buy(0.01, _Symbol);
+      posTicket = trade.ResultOrder();
+   }
+   Comment("RSI: " + rsi[0] + "\n" + "POSTicket: " + posTicket);
+   //modify order
+   if(PositionSelectByTicket(posTicket)){
+   Print("Trying to modify");
+      double posPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+      double posSl = PositionGetDouble(POSITION_SL);
+      double posTp = PositionGetDouble(POSITION_TP);
+      int posType = (int)PositionGetInteger(POSITION_TYPE);
+      
+      int decimals = GetDigits(posPrice);
+      Print("Symbol" + _Symbol +", Decimals: " + decimals);
+      double askPrice   = SymbolInfoDouble(Symbol(),SYMBOL_ASK);
+      double bidPrice   = SymbolInfoDouble(Symbol(),SYMBOL_BID);
+      
+      //double sl   = NormalizeDouble(bidPrice - stopLevels * Point(),_Digits);
+     // double tp   = NormalizeDouble(askPrice + stopLevels * Point(),_Digits);
+      Print("BID: " + bidPrice);
+      Print("ASK: " + askPrice);
+     // Print("SL: " + sl + ", TP: " + tp);
+      
+      if(posType == POSITION_TYPE_BUY){
+         if(posSl == 0){
+            Print("BUYING");
+            double sl = 0;
+            double tp = 0;
+            if(decimals == 3){
+               sl = bidPrice - 0.15;
+               tp = askPrice + 0.03;
+            }else{
+               sl = bidPrice - 0.00150;
+               tp = askPrice + 0.00009;
+            }
+            
+            Print("CURR: " + posPrice + ",SL: " + sl + ", TP: " + tp);
+            trade.PositionModify(posTicket,sl,tp);
+            
+         }      
+      }
+      else if(posType == POSITION_TYPE_SELL){
+         if(posSl == 0){
+            Print("SELLING");
+            double sl = 0;
+            double tp = 0;
+            if(decimals == 3){
+               sl = askPrice + 0.15;
+               tp = bidPrice - 0.03;
+            }else{
+               sl = askPrice + 0.00150;
+               tp = bidPrice - 0.00009;
+            }
+            Print("CURR: " + posPrice + ",SL: " + sl + ", TP: " + tp);
+            trade.PositionModify(posTicket,sl,tp);
+            
+         }   
+      }
+   }else{
+      posTicket = 0;
+   }
+      
+}
+
+int GetDigits(double num)
+  {
+   int d = 0; double p = 1;
+   while(MathRound(num * p) / p != num)
+     {
+      p = MathPow(10, ++d);
+     }
+   return d;
+  }
+  
+
