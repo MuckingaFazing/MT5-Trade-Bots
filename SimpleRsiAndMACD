@@ -3,14 +3,15 @@
 #property version   "1.00"
 #include <Trade/Trade.mqh>
 
-int rsiHandle;
 ulong posTicket = 0;
+int barsTotal;
+double volume = 0.01;
 
 CTrade trade;//library to make trades
 
 int OnInit(){
   Print("Advisor Started for " + _Symbol);
-  
+  barsTotal = iBars(_Symbol,_Period);
   
   return(INIT_SUCCEEDED);
 }
@@ -20,6 +21,14 @@ void OnDeinit(const int reason){
 }
 
 void OnTick(){
+
+         int maHandle = iMA(_Symbol,_Period,10,0,MODE_EMA,PRICE_CLOSE);//fast,slow,signal SMA period
+         double ma[];
+         CopyBuffer(maHandle, 0,0,4,ma);
+         Print("MA3: " + ma[3]);
+         Print("MA2: " +ma[2]);
+         Print("MA1: " +ma[1]);
+         Print("MA0: " +ma[0]);
    //check if we have active trades
    for(int i = PositionsTotal() - 1; i >= 0; i--) {
       ulong ticket = PositionGetTicket(i);
@@ -30,14 +39,48 @@ void OnTick(){
           }
       }
    }
-   
+   Sleep(10000);
    posTicket = 0;
    RSI();  
-   MACD();   
+   MACD();  
+   Modify(); 
 }
 
 void MACD(){
+   int bar = iBars(_Symbol, _Period);
    int macHandle = iMACD(_Symbol,_Period,12,26,9,PRICE_CLOSE);//fast,slow,signal SMA period
+   
+   double macd[];
+   CopyBuffer(macHandle,MAIN_LINE,1,4,macd);
+   
+   double signal[];
+   CopyBuffer(macHandle,SIGNAL_LINE,1,4,signal);
+   //Print("SIGNAL3: " + DoubleToString(signal[3],4) + ",MACD1: " + DoubleToString(macd[3],4));
+   //Print("SIGNAL2: " + DoubleToString(signal[2],4) + ",MACD1: " + DoubleToString(macd[2],4));
+   //Print("SIGNAL1: " + DoubleToString(signal[1],4) + ",MACD1: " + DoubleToString(macd[1],4));
+   //Print("SIGNAL0: " + DoubleToString(signal[0],4) + ",MACD0: " + DoubleToString(macd[0],4));
+   
+   if(macd[1] > signal[1] && macd[0] < signal [0]){
+      Print(__FUNCSIG__, " > BUY CROSSOVER...");
+      if(signal [0] < 0){//im guessing chances for uptrent is better? 
+         //now lets check the trend, it needs to go up to be profitable
+         
+         //Buy();
+      }else{
+         Print("Signal above 0.000, risky buy");
+      }
+      
+   }else if(macd[1] < signal[1] && macd[0] > signal [0]){
+      Print(__FUNCSIG__, " > SELL CROSSOVER...");
+      if(signal [0] > 0){
+         //now lets check the trend, it needs to go down to be profitable
+         
+         //Sell();
+      }else{
+         Print("Signal below 0.000, risky sell");
+      }
+      
+   }
 }
   
 void RSI(){
@@ -46,20 +89,35 @@ void RSI(){
    CopyBuffer(rsiHandle,0,1,1,rsi);
    //Print("RSI: " + rsi[0]);
    
-   if(rsi[0] > 75){
-      Print("RSI ABOVE 75, current: " + rsi[0]);
+   if(rsi[0] > 80){
+      Print("RSI ABOVE 80, current: " + rsi[0]);
       //Place Order
-      trade.Sell(0.01, _Symbol);
-      posTicket = trade.ResultOrder();
-   }else if(rsi[0] < 25){
+      //trade.Sell(0.01, _Symbol);
+      //posTicket = trade.ResultOrder();
+      Buy();
+   }else if(rsi[0] < 20){
       //Place Order
-      Print("RSI BELOW 25, current: " + rsi[0]);
+      Print("RSI BELOW 20, current: " + rsi[0]);
       //open position
-      trade.Buy(0.01, _Symbol);
-      posTicket = trade.ResultOrder();
+      //trade.Buy(0.01, _Symbol);
+      //posTicket = trade.ResultOrder();
+      Sell();
    }
    Comment("RSI: " + rsi[0] + "\n" + "POSTicket: " + posTicket);
    //modify order
+   
+      
+}
+void Sell(){
+   trade.Sell(volume, _Symbol);
+     posTicket = trade.ResultOrder();
+}
+void Buy(){
+    trade.Buy(volume, _Symbol);
+    posTicket = trade.ResultOrder();
+}
+
+void Modify(){
    if(PositionSelectByTicket(posTicket)){
    Print("Trying to modify");
       double posPrice = PositionGetDouble(POSITION_PRICE_OPEN);
@@ -72,11 +130,8 @@ void RSI(){
       double askPrice   = SymbolInfoDouble(Symbol(),SYMBOL_ASK);
       double bidPrice   = SymbolInfoDouble(Symbol(),SYMBOL_BID);
       
-      //double sl   = NormalizeDouble(bidPrice - stopLevels * Point(),_Digits);
-     // double tp   = NormalizeDouble(askPrice + stopLevels * Point(),_Digits);
       Print("BID: " + bidPrice);
       Print("ASK: " + askPrice);
-     // Print("SL: " + sl + ", TP: " + tp);
       
       if(posType == POSITION_TYPE_BUY){
          if(posSl == 0){
@@ -116,8 +171,8 @@ void RSI(){
    }else{
       posTicket = 0;
    }
-      
 }
+
 
 int GetDigits(double num)
   {
