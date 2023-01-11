@@ -22,13 +22,7 @@ void OnDeinit(const int reason){
 
 void OnTick(){
 
-         int maHandle = iMA(_Symbol,_Period,10,0,MODE_EMA,PRICE_CLOSE);//fast,slow,signal SMA period
-         double ma[];
-         CopyBuffer(maHandle, 0,0,4,ma);
-         Print("MA3: " + ma[3]);
-         Print("MA2: " +ma[2]);
-         Print("MA1: " +ma[1]);
-         Print("MA0: " +ma[0]);
+         
    //check if we have active trades
    for(int i = PositionsTotal() - 1; i >= 0; i--) {
       ulong ticket = PositionGetTicket(i);
@@ -64,8 +58,17 @@ void MACD(){
       Print(__FUNCSIG__, " > BUY CROSSOVER...");
       if(signal [0] < 0){//im guessing chances for uptrent is better? 
          //now lets check the trend, it needs to go up to be profitable
-         
-         //Buy();
+         int maHandle = iMA(_Symbol,_Period,10,0,MODE_EMA,PRICE_CLOSE);//fast,slow,signal SMA period
+         double ma[];
+         CopyBuffer(maHandle, 0,0,50,ma);
+         //Print("MA6: " +ma[6]);
+         //Print("MA0: " +ma[0]);
+         if(ma[6] > ma[0]){
+            Print("UPTREND we can BUY");
+            Buy();
+         }else{
+            Print("UPTREND we can't BUY");
+         }
       }else{
          Print("Signal above 0.000, risky buy");
       }
@@ -74,8 +77,18 @@ void MACD(){
       Print(__FUNCSIG__, " > SELL CROSSOVER...");
       if(signal [0] > 0){
          //now lets check the trend, it needs to go down to be profitable
-         
-         //Sell();
+         int maHandle = iMA(_Symbol,_Period,10,0,MODE_EMA,PRICE_CLOSE);//fast,slow,signal SMA period
+         double ma[];
+         CopyBuffer(maHandle, 0,0,50,ma);
+         //Print("MA6: " +ma[6]);
+         //Print("MA0: " +ma[0]);
+         if(ma[6] > ma[0]){
+            Print("DOWNTREND we can sell");
+            Sell();
+         }else{
+            Print("UPTREND we can't sell");
+         }
+         //
       }else{
          Print("Signal below 0.000, risky sell");
       }
