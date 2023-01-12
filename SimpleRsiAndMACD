@@ -22,28 +22,49 @@ void OnDeinit(const int reason){
 
 void OnTick(){
 
-         
+         //2023.01.11 19:55:23.165	SimpleRsi (USDJPY,M1)	Ticket: 67358866,MACD: 0.019786232924332126 Signal: 0.023562448532670536
+
    //check if we have active trades
    for(int i = PositionsTotal() - 1; i >= 0; i--) {
       ulong ticket = PositionGetTicket(i);
       string sym = PositionGetSymbol(i);
       if(ticket>0){
           if(sym == _Symbol){
+          //lets print out the details of the trade to see if we can extend? 
+          int macHandle = iMACD(_Symbol,_Period,12,26,9,PRICE_CLOSE);//fast,slow,signal SMA period
+           // int macHandle = iMACD(_Symbol,_Period,34,144,9,PRICE_CLOSE);
+            double macd[];
+            CopyBuffer(macHandle,MAIN_LINE,1,4,macd);
+            
+            double signal[];
+            CopyBuffer(macHandle,SIGNAL_LINE,1,4,signal);
+            Print("Ticket: " + ticket + ",MACD: " + macd[0]+ " Signal: " + signal[0]);
+            Sleep(20000);
             return;//this means we already have a trade for this... lets not stop the others
           }
       }
    }
-   Sleep(10000);
+   
+      int maHandle = iMA(_Symbol,_Period,10,0,MODE_EMA,PRICE_CLOSE);//fast,slow,signal SMA period
+         //int 200maHandle = iMA(_Symbol,_Period,10,0,MODE_EMA,PRICE_CLOSE);//fast,slow,signal SMA period
+         double ma[];
+         ArraySetAsSeries(ma,true);
+         CopyBuffer(maHandle, 0,0,2,ma);
+      //Print("curr:" + ma[0]); 
+      //Print("aftr:" + ma[1]);
+      //Print("M:" + ma[20]);  
+      //Print("M:" + ma[50]); 
    posTicket = 0;
    RSI();  
    MACD();  
    Modify(); 
+   Sleep(2000);
 }
 
 void MACD(){
    int bar = iBars(_Symbol, _Period);
    int macHandle = iMACD(_Symbol,_Period,12,26,9,PRICE_CLOSE);//fast,slow,signal SMA period
-   
+   //int macHandle = iMACD(_Symbol,_Period,34,144,9,PRICE_CLOSE);//scalping apparently this is better? fast,slow,signal SMA period
    double macd[];
    CopyBuffer(macHandle,MAIN_LINE,1,4,macd);
    
@@ -58,16 +79,33 @@ void MACD(){
       Print(__FUNCSIG__, " > BUY CROSSOVER...");
       if(signal [0] < 0){//im guessing chances for uptrent is better? 
          //now lets check the trend, it needs to go up to be profitable
-         int maHandle = iMA(_Symbol,_Period,10,0,MODE_EMA,PRICE_CLOSE);//fast,slow,signal SMA period
+         int maHandle = iMA(_Symbol,_Period,12,0,MODE_EMA,PRICE_CLOSE);//fast,slow,signal SMA period
+         //int 200maHandle = iMA(_Symbol,_Period,10,0,MODE_EMA,PRICE_CLOSE);//fast,slow,signal SMA period
          double ma[];
+         ArraySetAsSeries(ma,true);
          CopyBuffer(maHandle, 0,0,50,ma);
          //Print("MA6: " +ma[6]);
          //Print("MA0: " +ma[0]);
-         if(ma[6] > ma[0]){
+         /*Print("MA SHOULD GROW: " + DoubleToString(ma[45],4)+ "," + DoubleToString(ma[5],4) + "," +DoubleToString(ma[4],4) + "," +DoubleToString(ma[3],3)
+            + "," +DoubleToString(ma[2],4) + "," +DoubleToString(ma[1],4) + "," +DoubleToString(ma[0],4));
+         if(ma[5] < ma[4] && ma[4] < ma[3] && ma[3] < ma[2] && ma[2] < ma[1] && ma[1] < ma[0]){*/
+         Print("curr: " + ma[0] + ", beff:" + ma[1]);
+         if(ma[0] > ma[1]){
             Print("UPTREND we can BUY");
-            Buy();
+            Print("Market movement: " + (ma[45] / ma[0] * 100) + "%");
+                if((ma[0] / ma[45] * 100) < 0.5){
+                  Print("Market is not moving enough");
+                }
+            int rsiHandle = iRSI(_Symbol, _Period,14,PRICE_CLOSE);//curr, timeframe, period, applied price
+            double rsi[];
+            CopyBuffer(rsiHandle,0,1,1,rsi);
+            if(rsi[0] > 70){
+               Print("RSI is very high... we should probably not touch this for buying: " + rsi[0]);
+            }else{
+               Buy();
+            }
          }else{
-            Print("UPTREND we can't BUY");
+            Print("DOWNTREND we can't BUY");
          }
       }else{
          Print("Signal above 0.000, risky buy");
@@ -77,14 +115,33 @@ void MACD(){
       Print(__FUNCSIG__, " > SELL CROSSOVER...");
       if(signal [0] > 0){
          //now lets check the trend, it needs to go down to be profitable
-         int maHandle = iMA(_Symbol,_Period,10,0,MODE_EMA,PRICE_CLOSE);//fast,slow,signal SMA period
+         int maHandle = iMA(_Symbol,_Period,12,0,MODE_EMA,PRICE_CLOSE);//fast,slow,signal SMA period
          double ma[];
+         ArraySetAsSeries(ma,true);
          CopyBuffer(maHandle, 0,0,50,ma);
          //Print("MA6: " +ma[6]);
          //Print("MA0: " +ma[0]);
-         if(ma[6] > ma[0]){
+         //Print("MA SHOULD SHIRINK: " + DoubleToString(ma[45],4) + "," + DoubleToString(ma[5],4) + "," +DoubleToString(ma[4],4) + "," +DoubleToString(ma[3],3)
+         //   + "," +DoubleToString(ma[2],4) + "," +DoubleToString(ma[1],4) + "," +DoubleToString(ma[0],4));
+         //if(ma[5] > ma[4] && ma[4] > ma[3] && ma[3] > ma[2] && ma[2] > ma[1] && ma[1] > ma[0]){
+            Print("curr: " + ma[0] + ", beff:" + ma[1]);
+            if(ma[0] < ma[1]){
+            //now check movement over time
+               Print("Market movement: " + (ma[0] / ma[45] * 100) + "%");
+                if((ma[0] / ma[45] * 100) < 0.5){
+                  Print("Market is not moving enough");
+                }
             Print("DOWNTREND we can sell");
-            Sell();
+            //lets just double check for extreme RSI
+            int rsiHandle = iRSI(_Symbol, _Period,14,PRICE_CLOSE);//curr, timeframe, period, applied price
+            double rsi[];
+            CopyBuffer(rsiHandle,0,1,1,rsi);
+            if(rsi[0] < 30){
+               Print("RSI is very low... we should probably not touch this for selling: " + rsi[0]);
+            }else{
+               Sell();
+            }
+            
          }else{
             Print("UPTREND we can't sell");
          }
@@ -156,7 +213,7 @@ void Modify(){
                tp = askPrice + 0.03;
             }else{
                sl = bidPrice - 0.00150;
-               tp = askPrice + 0.00009;
+               tp = askPrice + 0.00003;
             }
             
             Print("CURR: " + posPrice + ",SL: " + sl + ", TP: " + tp);
@@ -174,7 +231,7 @@ void Modify(){
                tp = bidPrice - 0.03;
             }else{
                sl = askPrice + 0.00150;
-               tp = bidPrice - 0.00009;
+               tp = bidPrice - 0.00003;
             }
             Print("CURR: " + posPrice + ",SL: " + sl + ", TP: " + tp);
             trade.PositionModify(posTicket,sl,tp);
@@ -196,5 +253,3 @@ int GetDigits(double num)
      }
    return d;
   }
-  
-
