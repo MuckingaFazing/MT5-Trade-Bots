@@ -50,6 +50,7 @@ void OnTick(){
       string sym = PositionGetSymbol(i);
       if(ticket>0){
           if(sym == _Symbol){
+          
           //lets print out the details of the trade to see if we can extend? 
             Sleep(20000);
             return;//this means we already have a trade for this... lets not stop the others
