@@ -1,0 +1,206 @@
+
+#property copyright "Copyright 2023, MetaQuotes Ltd."
+#property link      "https://www.mql5.com"
+#property version   "1.00"
+#include <Trade/Trade.mqh>
+
+CTrade trade;//library to make trades
+double volume = 4.00;
+string state ="SELL"; 
+
+extern int TP=350;//50
+extern int SL=10000;//250 
+extern int ATR_LIM=25;
+int maHandle3 = iMA(_Symbol,_Period,3,0,MODE_SMA,PRICE_CLOSE);//fast,slow,signal SMA period
+int maHandle10 = iMA(_Symbol,_Period,10,0,MODE_SMA,PRICE_CLOSE);//fast,slow,signal SMA period
+int maHandle12 = iMA(_Symbol,_Period,12,0,MODE_SMA,PRICE_CLOSE);//fast,slow,signal SMA period
+int maHandle200 = iMA(_Symbol,_Period,200,0,MODE_SMA,PRICE_CLOSE);//fast,slow,signal SMA period
+
+double ma3[];
+double ma10[];
+double ma12[];
+double ma200[];
+
+
+int OnInit(){
+   Print("MA Advisor started");
+   return(INIT_SUCCEEDED);
+}
+
+void OnDeinit(const int reason){
+}
+
+void OnTick(){
+  
+   ArraySetAsSeries(ma10,true);
+   CopyBuffer(maHandle10, 0,0,50,ma10);
+      
+   ArraySetAsSeries(ma12,true);
+   CopyBuffer(maHandle12, 0,0,50,ma12);
+   
+   ArraySetAsSeries(ma3,true);
+   CopyBuffer(maHandle3, 0,0,50,ma3);
+   
+   ArraySetAsSeries(ma200,true);
+   CopyBuffer(maHandle200, 0,0,50,ma200);
+   
+   //check if we have active trades
+   for(int i = PositionsTotal() - 1; i >= 0; i--) {
+      ulong ticket = PositionGetTicket(i);
+      string sym = PositionGetSymbol(i);
+      if(ticket>0){
+          if(sym == _Symbol){
+          //lets check if it crosses again into the opposite direction!
+             string before = state;
+             didCrossover(false); 
+             string after = state; 
+             if(before != after){
+               Print("CRAP IT CROSSED!!!!!");
+               Print("CRAP IT CROSSED!!!!!");
+               Print("CRAP IT CROSSED!!!!!");
+               Print("CRAP IT CROSSED!!!!!");
+               //trade.PositionClose(ticket);
+             }
+             //Sleep(20000);
+             return;//this means we already have a trade for this... lets not stop the others
+          }
+      }
+   }
+
+   //check the time
+   //if(!timeInRange()){
+  //    return;
+  // }
+   //check the spread
+   if(!spreadInRange()){
+      return;
+   } 
+   //check the ATR - under 25 means market is standing still! Too little movement!
+  if(!checkATR()){
+      return;
+   }
+   
+   
+      
+   didCrossover(true);  
+}
+
+void didCrossover(bool doTransaction){
+   //Print("State: + " + state);
+   //10 above means buy
+   if(ma10[0] > ma12[0]){//BUY
+      Comment("BUYFF: GREEN=" + DoubleToString(ma10[0],6) + "RED=" + DoubleToString(ma12[0],6) + " State:" + state);
+      if(state == "SELL"){
+      Print("CROSSOVER HAPPENED");
+         Print("BUYING GREEN=" + DoubleToString(ma10[0],6) + " RED=" + DoubleToString(ma12[0],6));
+         if(ma10[0] > ma200[0]){
+            //Print("MA10: " + ma10[0] + ", MA200: " + ma200[0]);
+            buy(doTransaction);
+         }else{
+            Print("Can only Buy in uptrend ma200");
+         }
+         state = "BUY";
+      }
+      
+   }else if(ma12[0] > ma10[0]){//SELL
+      Comment("SELL: GREEN=" + DoubleToString(ma10[0],6) + "RED=" + DoubleToString(ma12[0],6) + " State:" + state);
+      if(state == "BUY"){
+         Print("CROSSOVER HAPPENED");
+         if(isDowntrend(ma12[0], ma12[1], ma3[0], ma3[1])){
+            Print("SELLING GREEN=" + DoubleToString(ma10[0],6) + " RED=" + DoubleToString(ma12[0],6));
+            if(ma10[0] < ma200[0]){
+               sell(doTransaction);
+            }else{
+               Print("Can only sell in downtrend ma200");             
+            }
+                                
+         }
+         state = "SELL";
+      }    
+   }  
+}
+
+void buy(bool doTransaction){
+   if(doTransaction){
+      double ask   = SymbolInfoDouble(Symbol(),SYMBOL_ASK);
+      double tp=ask+TP*_Point;  
+      double sl=ma10[0]-SL*_Point;
+      
+      if(ma10[0] > ma200[0]){
+         //Print("MA10: " + ma10[0] + ", MA200: " + ma200[0]);
+         trade.Buy(volume, _Symbol,0,sl,tp);
+      }else{
+         Print("Can only Buy in uptrend ma200");
+      }
+   }
+}
+
+void sell(bool doTransaction){
+   if(doTransaction){
+      double bid   = SymbolInfoDouble(Symbol(),SYMBOL_BID);
+      double tp=bid-TP*_Point; 
+      double sl=ma10[0]+SL*_Point;
+      
+      if(ma10[0] < ma200[0]){
+         trade.Sell(volume, _Symbol,0,sl,tp);
+      }else{
+         Print("Can only sell in downtrend ma200");             
+      }
+   }
+}
+
+ bool timeInRange(){
+   MqlDateTime mdt;
+   TimeCurrent(mdt);
+   if(mdt.hour == 1 || mdt.hour == 0){
+      Comment("Bad Trading Hour: " + mdt.hour);
+      return false;
+   }
+   return true;
+ }
+ 
+  bool checkATR(){
+   int atrHandle = iATR(_Symbol,_Period,14);
+   double atr[];
+   ArraySetAsSeries(atr,true);
+   CopyBuffer(atrHandle, 0,0,3,atr);
+   
+   if(atr[0] < ATR_LIM){
+      Comment("BAD ATR: " + atr[0]);
+      return false;
+   }else{
+      return true;
+   }
+ }
+
+ bool spreadInRange(){
+   int currentSpread = SymbolInfoInteger(_Symbol,SYMBOL_SPREAD);
+   if(currentSpread > 500){
+      Comment("Bad Spread: " + currentSpread);
+      return false;
+   }
+   return true;
+ }
+ 
+ bool isUptrend(double cur, double bef, double cur3, double bef3){//12MA
+   Print("Test Uptrend Bef: " + bef + ",NOW: " + cur);
+   if(cur > bef && cur3 > bef3){
+      Print("Uptrend confirmed");
+      return true;
+   }else{
+      Print("Uptrend NOT confirmed");
+      return false;
+   }
+ }
+ 
+ bool isDowntrend(double cur, double bef, double cur3, double bef3){//12MA
+   Print("Test Downtrend Bef: " + bef + ",NOW: " + cur);
+   if(cur < bef && cur3 < bef3){
+      Print("Downtrend confirmed");
+      return true;
+   }else{
+      Print("Downtrend NOT confirmed");
+      return false;
+   }
+ }
+
